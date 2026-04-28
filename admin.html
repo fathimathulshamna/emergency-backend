@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Emergency Control Panel</title>
+
+ <style>
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    background: #f4f6fb;
+}
+
+/* SIDEBAR */
+.sidebar {
+    width: 260px;
+    background: linear-gradient(180deg, #1e2a3a, #111827);
+    color: white;
+    padding: 25px;
+    height: 100vh;
+    position: fixed;
+}
+
+.sidebar h2 {
+    margin-bottom: 10px;
+}
+
+.sidebar .stat {
+    margin-top: 20px;
+    padding: 10px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.sidebar button {
+    width: 100%;
+    margin-top: 20px;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background: #ef4444;
+    color: white;
+    cursor: pointer;
+}
+
+/* MAIN */
+.main {
+    margin-left: 260px;
+    padding: 25px;
+    width: 100%;
+}
+
+h1 {
+    color: #111827;
+    margin-bottom: 20px;
+}
+
+/* GRID */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+}
+
+/* CARD */
+.card {
+    background: white;
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    transition: 0.3s;
+    border-left: 5px solid #3b82f6;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+/* TITLE */
+.title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ef4444;
+}
+
+/* BADGES */
+.status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.new {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.resolved {
+    background: #dcfce7;
+    color: #166534;
+}
+
+/* TEXT */
+p {
+    font-size: 14px;
+    margin: 6px 0;
+    color: #374151;
+}
+
+/* IMAGE */
+img {
+    width: 100%;
+    margin-top: 10px;
+    border-radius: 12px;
+}
+
+/* BUTTONS */
+button {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.resolve-btn {
+    background: #22c55e;
+    color: white;
+}
+
+.map-btn {
+    background: #3b82f6;
+    color: white;
+    margin-left: 5px;
+}
+
+/* TIME */
+.time {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <h2>🚨 Emergency Panel</h2>
+
+    <div class="stat">
+        Total Alerts: <span id="count">0</span>
+    </div>
+
+    <div class="stat">
+        New: <span id="newCount">0</span>
+    </div>
+
+    <div class="stat">
+        Resolved: <span id="resolvedCount">0</span>
+    </div>
+
+    <button onclick="logout()">Logout</button>
+</div>
+
+<div class="main">
+    <h1>Live Emergencies</h1>
+    <div class="cards" id="data"></div>
+</div>
+
+<!-- 🔔 POPUP -->
+<div id="notify" style="
+position: fixed;
+top: 20px;
+right: 20px;
+background: red;
+color: white;
+padding: 12px 20px;
+border-radius: 8px;
+display: none;
+z-index: 999;">
+🚨 New Emergency!
+</div>
+
+<!-- 🔊 SOUND (PASTE HERE) -->
+<audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg"></audio>
+
+<script>
+    // 🔐 CHECK LOGIN (ADD HERE)
+if (localStorage.getItem("loggedIn") !== "true") {
+    window.location.href = "login.html";
+}
+let allData = [];
+// ✅ ADD LOGOUT FUNCTION RIGHT AFTER
+function logout() {
+    localStorage.removeItem("loggedIn");
+    window.location.href = "login.html";
+}
+let lastCount = 0;
+
+// 🔄 LOAD DATA
+async function loadData() {
+    try {
+        const res = await fetch("http://localhost:3000/api/emergency");
+        const newData = await res.json();
+
+        if (newData.length > lastCount) {
+            document.getElementById("alertSound").play();
+            showNotification("🚨 New Emergency Alert!");
+        }
+
+        lastCount = newData.length;
+        allData = newData;
+
+        render();
+
+    } catch (err) {
+        console.error("Fetch error:", err);
+    }
+}
+
+// 🎨 RENDER UI
+function render() {
+
+    document.getElementById("count").innerText = allData.length;
+
+    document.getElementById("newCount").innerText =
+        allData.filter(i => i.status !== "Resolved").length;
+
+    document.getElementById("resolvedCount").innerText =
+        allData.filter(i => i.status === "Resolved").length;
+
+    document.getElementById("data").innerHTML = allData.map(item => `
+        <div class="card">
+
+            <div class="title">${item.type}</div>
+
+            <div class="status ${item.status === 'Resolved' ? 'resolved' : 'new'}">
+                ${item.status || 'New'}
+            </div>
+
+            <p><b>Name:</b> ${item.name}</p>
+            <p><b>Phone:</b> ${item.phone}</p>
+
+            <p>${item.description}</p>
+
+            <p><b>📍 Address:</b><br>
+            ${item.address ? item.address : "Not available"}</p>
+
+            <p><b>🧭 GPS:</b><br>
+            ${item.location?.latitude}, ${item.location?.longitude}</p>
+
+            <a target="_blank"
+               href="https://www.google.com/maps?q=${item.location?.latitude},${item.location?.longitude}">
+                <button class="map-btn">Open Map</button>
+            </a>
+
+            ${item.image ? `<img src="${item.image}">` : ""}
+
+            <div class="time">
+                ${item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}
+            </div>
+
+            <button class="resolve-btn" onclick="markResolved('${item._id}')">
+                Mark Resolved
+            </button>
+
+        </div>
+    `).join("");
+}
+
+// 🔔 NOTIFICATION FUNCTION
+function showNotification(msg) {
+    const box = document.getElementById("notify");
+
+    if (!box) {
+        console.error("❌ notify div not found");
+        return;
+    }
+
+    box.innerText = msg;
+    box.style.display = "block";
+
+    setTimeout(() => {
+        box.style.display = "none";
+    }, 3000);
+}
+
+// ✅ MARK RESOLVED
+async function markResolved(id) {
+    try {
+        await fetch(`http://localhost:3000/api/emergency/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" }
+        });
+
+        loadData();
+
+    } catch (err) {
+        console.error("Update failed:", err);
+    }
+}
+
+// 🔄 AUTO REFRESH
+loadData();
+setInterval(loadData, 5000);
+</script>
+
+</body>
+</html>
